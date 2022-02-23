@@ -34,6 +34,7 @@ SOFTWARE.
 #include <stddef.h>
 
 #include "adafruit/bbio/error.h"
+
 #ifdef __cplusplus
 using adafruit::bbio::BBIO_err;
 #endif
@@ -55,6 +56,7 @@ using adafruit::bbio::BBIO_err;
 typedef struct pwm_t {
   const char *module;
   const int sysfs;
+  const int sysfs5; 
   const int index;
   const int muxmode;
   const char *path;

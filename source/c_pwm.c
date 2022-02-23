@@ -34,7 +34,7 @@ SOFTWARE.
 #include "c_pwm.h"
 #include "common.h"
 
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
 #include "c_pinmux.h"
 #endif
 
@@ -50,7 +50,7 @@ struct pwm_exp
     int period_fd;
     int duty_fd;
     int polarity_fd;
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
     int enable_fd;
 #endif
     float duty;
@@ -104,6 +104,10 @@ int is_dmtimer_pin(pwm_t *p) {
 
 BBIO_err initialize_pwm(void)
 {
+#ifdef BBBVERSION510
+    if (!pwm_initialized) {
+        strncpy(ocp_dir, "/sys/class/pwm", sizeof(ocp_dir));
+#else
 #ifdef BBBVERSION41  // don't load overlay in 4.1+
     if (!pwm_initialized) {
         strncpy(ocp_dir, "/sys/devices/platform/ocp", sizeof(ocp_dir));
@@ -116,6 +120,7 @@ BBIO_err initialize_pwm(void)
             return BBIO_SYSFS;
         }
 #endif
+#endif //BBBVERSION510
         pwm_initialized = 1;
         syslog(LOG_DEBUG, "Adafruit_BBIO: initialize_pwm: OK");
         return BBIO_OK;
@@ -205,7 +210,7 @@ BBIO_err pwm_set_polarity(const char *key, int polarity) {
     int len;
     char buffer[100]; /* allow room for trailing NUL byte */
     struct pwm_exp *pwm;
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
     int enabled; /* Maintain original state */
 #endif
 
@@ -217,7 +222,8 @@ BBIO_err pwm_set_polarity(const char *key, int polarity) {
     }
 
     // polarity can't be changed with enabled.
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+
     // Read the current enabled status
     len = 1;
     memset(buffer, 0, 9);  // Initialize buffer
@@ -265,7 +271,7 @@ BBIO_err pwm_set_polarity(const char *key, int polarity) {
     }
 
     /* If we were enabled before, restore state */
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
     if (enabled) {
         lseek(pwm->enable_fd, 0, SEEK_SET);
         len = snprintf(buffer, sizeof(buffer), "1");
@@ -315,8 +321,7 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
 {
     BBIO_err err;
     struct pwm_exp *new_pwm;
-
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
     char pwm_dev_path[100]; 	// "/sys/devices/platform/ocp/48300000.epwmss"
     char pwm_addr_path[150];	// "/sys/devices/platform/ocp/48300000.epwmss/48300200.ehrpwm"
     char pwm_chip_path[200]; 	// "/sys/devices/platform/ocp/48300000.epwmss/48300200.ehrpwm/pwm/pwmchip0"
@@ -384,6 +389,47 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
     }
 
     int dmtimer_pin = is_dmtimer_pin(p);
+#ifdef BBBVERSION510
+
+    // if(!dmtimer_pin) {
+    //     err = build_path(ocp_dir, p->chip, pwm_dev_path, sizeof(pwm_dev_path));
+    //     if (err != BBIO_OK) {
+    //         syslog(LOG_ERR, "Adafruit_BBIO: pwm_setup: %s couldn't build pwm_dev_path: %i", key, err);
+    //         return err;
+    //     }
+
+    //     err = build_path(pwm_dev_path, p->addr, pwm_addr_path, sizeof(pwm_addr_path));
+    //     if (err != BBIO_OK) {
+    //         syslog(LOG_ERR, "Adafruit_BBIO: pwm_setup: %s couldn't build pwm_addr_path: %i", key, err);
+    //         return err;
+    //     }
+    // }
+    // else {
+    //     err = build_path("/sys/devices/platform", p->addr, pwm_addr_path, sizeof(pwm_addr_path));
+    //     if (err != BBIO_OK) {
+    //         syslog(LOG_ERR, "Adafruit_BBIO: pwm_setup: %s couldn't build pwm_addr_path, are you sure you've loaded the correct dmtimer device tree overlay?: %i", key, err);
+    //         return err;
+    //     }
+    // }
+
+    // err = build_path("/sys/class/pwm", "pwmchip", pwm_chip_path, sizeof(pwm_chip_path));
+    snprintf(pwm_chip_path, sizeof(pwm_chip_path), "/sys/class/pwm/pwmchip%d", p->sysfs5);
+    snprintf(pwm_path, sizeof(pwm_path), "/sys/class/pwm/pwmchip%d/pwm%d", p->sysfs5, p->index);
+    if (err != BBIO_OK) {
+        syslog(LOG_ERR, "Adafruit_BBIO: pwm_setup: %s couldn't build pwm_chip_path: %i", key, err);
+        return err;
+    }
+
+    // snprintf(pwm_path, sizeof(pwm_path), "%s/pwm%d", pwm_chip_path, p->index);
+    syslog(LOG_DEBUG, "Adafruit_BBIO: pwm_start: key: %s, pwm_path: %s", key, pwm_path);
+
+    //pwm with udev patch
+    snprintf(pwm_path_udev, sizeof(pwm_path_udev), "%s", pwm_path);
+    syslog(LOG_DEBUG, "Adafruit_BBIO: pwm_start: key: %s, pwm_path_udev: %s", key, pwm_path_udev);
+    //ecap output with udev patch
+    snprintf(ecap_path_udev, sizeof(ecap_path_udev), "%s", pwm_path);
+    syslog(LOG_DEBUG, "Adafruit_BBIO: pwm_start: key: %s, ecap_path_udev: %s", key, ecap_path_udev);
+#else
 
     if(!dmtimer_pin) {
         err = build_path(ocp_dir, p->chip, pwm_dev_path, sizeof(pwm_dev_path));
@@ -421,6 +467,7 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
     //ecap output with udev patch
     snprintf(ecap_path_udev, sizeof(ecap_path_udev), "%s/pwm-%c:%d", pwm_chip_path, dmtimer_pin ? pwm_path[47] : pwm_path[67], p->index);
     syslog(LOG_DEBUG, "Adafruit_BBIO: pwm_start: key: %s, ecap_path_udev: %s", key, ecap_path_udev);
+#endif
 
     // Export PWM if hasn't already been
     e = stat(pwm_path, &s);
@@ -559,7 +606,8 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
         return BBIO_SYSFS;
     }
 
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+
     if ((enable_fd = open(enable_path, O_RDWR)) < 0) {
         // error, close already opened files
         close(period_fd);
@@ -577,7 +625,8 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
         close(period_fd);
         close(duty_fd);
         close(polarity_fd);
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+
         close(enable_fd);
 #endif
         syslog(LOG_ERR, "Adafruit_BBIO: pwm_setup: %s couldn't malloc pwm_exp: %i-%s",
@@ -591,7 +640,7 @@ BBIO_err pwm_setup(const char *key, __attribute__ ((unused)) float duty, __attri
     new_pwm->duty_fd = duty_fd;
     new_pwm->polarity_fd = polarity_fd;
 
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
     new_pwm->enable_fd = enable_fd;
 #endif
 
@@ -688,7 +737,8 @@ BBIO_err pwm_start(const char *key, float duty, float freq, int polarity)
         return err;
     }
 
-#ifdef BBBVERSION41  // Enable the PWM (don't think it's necessary before 4.1+)
+#if defined BBBVERSION41 || defined BBBVERSION510
+  // Enable the PWM (don't think it's necessary before 4.1+)
     if (pwm == NULL) {
         return BBIO_GEN;
     }
@@ -711,7 +761,8 @@ BBIO_err pwm_disable(const char *key)
 {
     struct pwm_exp *pwm, *temp, *prev_pwm = NULL;
 
-#ifndef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+#else
     BBIO_err err;
     char fragment[100];
     snprintf(fragment, sizeof(fragment), "bone_pwm_%s", key);
@@ -727,7 +778,8 @@ BBIO_err pwm_disable(const char *key)
         if (strcmp(pwm->key, key) == 0)
         {
 
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+
 	        char buffer[100];
 	        size_t len;
 
@@ -745,7 +797,8 @@ BBIO_err pwm_disable(const char *key)
 #endif
 
             //close the fd
-#ifdef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+
             close(pwm->enable_fd);
 #endif
             close(pwm->period_fd);
