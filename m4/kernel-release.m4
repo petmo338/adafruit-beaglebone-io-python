@@ -2,7 +2,7 @@ AC_DEFUN([CHECK_KERNEL_RELEASE],
 [
   AC_MSG_CHECKING([if kernel release >= 4.1])
 
-  kernel_ge_41=$(python -c 'import platform; print("yes" if platform.release() >= "4.1.0" else "no")')
+  kernel_ge_41=$(python3 -c 'import platform; print("yes" if platform.release() >= "4.1.0" else "no")')
 
   if test "x$kernel_ge_41" = "xyes"; then
     CPPFLAGS="$CPPFLAGS -DBBBVERSION41"

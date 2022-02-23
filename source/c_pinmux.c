@@ -23,15 +23,14 @@ BBIO_err set_pin_mode(const char *key, const char *mode)
 		snprintf(pin, sizeof(pin), "%.3s0%c", key,key[3]);
 	else	//copy string
 		snprintf(pin, sizeof(pin), "%s", key);
-
-#ifndef BBBVERSION41
+#if defined BBBVERSION41 || defined BBBVERSION510
+	strncpy(ocp_dir, "/sys/devices/platform/ocp", sizeof(ocp_dir));
+#else
 	BBIO_err err;
 	err = build_path("/sys/devices/platform", "ocp", ocp_dir, sizeof(ocp_dir));
 	if (err != BBIO_OK) {
 		return err;
 	}
-#else
-	strncpy(ocp_dir, "/sys/devices/platform/ocp", sizeof(ocp_dir));
 #endif
 
 	snprintf(pinmux_dir, sizeof(pinmux_dir), "ocp:%s_pinmux", pin);
